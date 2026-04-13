@@ -143,13 +143,42 @@
       placeholder.id = PLACEHOLDER_ID;
       placeholder.hidden = true;
       placeholder.innerHTML = `
-        <div class="yt-focus-screen">
-          <div class="yt-focus-aura"></div>
-          <div class="yt-focus-pulse"></div>
-          <div class="yt-focus-card">
-            <span class="yt-focus-badge">Focus Mode</span>
-            <strong class="yt-focus-title">Stay focused.</strong>
-            <span class="yt-focus-copy">Distractions are hidden.</span>
+        <div class="yt-focus-shell">
+          <header class="yt-focus-header">
+            <a class="yt-focus-home" href="/" aria-label="Go to YouTube home">
+              <span class="yt-focus-home-mark">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21.58 7.19a2.76 2.76 0 0 0-1.94-1.95C17.92 4.75 12 4.75 12 4.75s-5.92 0-7.64.49A2.76 2.76 0 0 0 2.42 7.2 28.4 28.4 0 0 0 1.93 12a28.4 28.4 0 0 0 .49 4.81 2.76 2.76 0 0 0 1.94 1.95c1.72.49 7.64.49 7.64.49s5.92 0 7.64-.49a2.76 2.76 0 0 0 1.94-1.95 28.4 28.4 0 0 0 .49-4.81 28.4 28.4 0 0 0-.49-4.81Z"></path>
+                  <path d="m10 15.5 5.2-3.5L10 8.5Z" fill="currentColor"></path>
+                </svg>
+              </span>
+              <span class="yt-focus-home-copy">YouTube</span>
+            </a>
+
+            <form class="yt-focus-search" action="/results" method="get" role="search">
+              <input
+                class="yt-focus-search-input"
+                type="search"
+                name="search_query"
+                placeholder="Search YouTube"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="Search YouTube"
+              >
+              <button class="yt-focus-search-button" type="submit" aria-label="Search">
+                Search
+              </button>
+            </form>
+          </header>
+
+          <div class="yt-focus-screen">
+            <div class="yt-focus-aura"></div>
+            <div class="yt-focus-pulse"></div>
+            <div class="yt-focus-card">
+              <span class="yt-focus-badge">Focus Mode</span>
+              <strong class="yt-focus-title">Stay focused.</strong>
+              <span class="yt-focus-copy">Distractions are hidden.</span>
+            </div>
           </div>
         </div>
       `;
@@ -265,12 +294,141 @@
         inset: 0;
         z-index: 2147483647;
         display: none;
-        pointer-events: none;
+        pointer-events: auto;
         overflow: hidden;
       }
 
       html.yt-focus-on.yt-focus-blocked #${PLACEHOLDER_ID} {
         display: grid;
+      }
+
+      .yt-focus-shell {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      .yt-focus-header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: auto minmax(320px, 640px) auto;
+        align-items: center;
+        gap: 16px;
+        padding: 18px 24px 0;
+      }
+
+      .yt-focus-home {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        justify-self: start;
+        min-height: 48px;
+        padding: 0 18px 0 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        box-shadow: 0 14px 28px rgba(17, 17, 17, 0.08);
+        color: #111111;
+        font: 600 15px/1 "SF Pro Text", "Helvetica Neue", sans-serif;
+        letter-spacing: -0.02em;
+        text-decoration: none;
+        backdrop-filter: blur(18px);
+      }
+
+      html[dark] .yt-focus-home {
+        background: rgba(24, 24, 24, 0.78);
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+        color: #f5f5f5;
+      }
+
+      .yt-focus-home-mark {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        background: #ff0033;
+        color: #ffffff;
+      }
+
+      .yt-focus-home-mark svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+      }
+
+      .yt-focus-search {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        justify-self: center;
+        width: 100%;
+        min-height: 56px;
+        padding: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        box-shadow: 0 18px 36px rgba(17, 17, 17, 0.08);
+        backdrop-filter: blur(18px);
+      }
+
+      html[dark] .yt-focus-search {
+        background: rgba(24, 24, 24, 0.78);
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+      }
+
+      .yt-focus-search-input,
+      .yt-focus-search-button {
+        border: 0;
+        outline: 0;
+        font-family: "SF Pro Text", "Helvetica Neue", sans-serif;
+      }
+
+      .yt-focus-search-input {
+        width: 100%;
+        min-width: 0;
+        height: 40px;
+        padding: 0 18px;
+        border-radius: 999px;
+        background: transparent;
+        color: #111111;
+        font-size: 15px;
+      }
+
+      .yt-focus-search-input::placeholder {
+        color: rgba(17, 17, 17, 0.46);
+      }
+
+      html[dark] .yt-focus-search-input {
+        color: #f5f5f5;
+      }
+
+      html[dark] .yt-focus-search-input::placeholder {
+        color: rgba(255, 255, 255, 0.48);
+      }
+
+      .yt-focus-search-button {
+        height: 40px;
+        padding: 0 18px;
+        border-radius: 999px;
+        background: #111111;
+        color: #f5f5f5;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        cursor: pointer;
+      }
+
+      html[dark] .yt-focus-search-button {
+        background: #f5f5f5;
+        color: #111111;
       }
 
       .yt-focus-screen {
@@ -412,6 +570,23 @@
         100% {
           transform: scale(1.24);
           opacity: 0;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .yt-focus-header {
+          grid-template-columns: 1fr;
+          gap: 12px;
+          padding: 18px 16px 0;
+        }
+
+        .yt-focus-home,
+        .yt-focus-search {
+          justify-self: stretch;
+        }
+
+        .yt-focus-home {
+          width: fit-content;
         }
       }
     `;
