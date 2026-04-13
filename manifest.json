@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "YouTube Focus Mode",
-  "version": "2.0.0",
-  "description": "A minimal focus mode that removes distractions from YouTube.",
+  "version": "2.1.0",
+  "description": "A minimal focus mode that strips YouTube down to what matters.",
   "permissions": [
-    "storage"
+    "storage",
+    "tabs"
   ],
   "host_permissions": [
     "https://www.youtube.com/*"
@@ -15,6 +16,7 @@
         "https://www.youtube.com/*"
       ],
       "js": [
+        "storage.js",
         "content.js"
       ],
       "run_at": "document_start"

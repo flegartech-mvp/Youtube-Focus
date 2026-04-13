@@ -1,51 +1,94 @@
 (() => {
-  const STORAGE_KEY = "focusModeEnabled";
   const STYLE_ID = "yt-focus-mode-style";
   const PLACEHOLDER_ID = "yt-focus-mode-placeholder";
-  const ROUTE_CLASSES = [
-    "yt-focus-mode-blocked",
-    "yt-focus-route-home",
-    "yt-focus-route-explore",
-    "yt-focus-route-trending",
-    "yt-focus-route-shorts"
-  ];
+  const BLOCKED_ROUTES = ["/", "/feed/explore", "/feed/trending", "/shorts"];
 
-  let isEnabled = true;
-  let applyQueued = false;
+  let state = FocusModeStorage.DEFAULT_STATE;
+  let lastUrl = location.href;
+  let applyTimer = null;
 
-  injectStyles();
-  bindStorage();
-  bindNavigation();
-  observeDom();
-  queueApply();
+  initialize();
 
-  function bindStorage() {
-    chrome.storage.local.get({ [STORAGE_KEY]: true }, (result) => {
-      isEnabled = Boolean(result[STORAGE_KEY]);
-      applyFocusMode();
-    });
+  async function initialize() {
+    injectStyles();
+    bindNavigation();
+    bindMessages();
+    bindStorage();
+    observeDom();
 
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName !== "local" || !changes[STORAGE_KEY]) {
-        return;
-      }
-
-      isEnabled = Boolean(changes[STORAGE_KEY].newValue);
-      applyFocusMode();
-    });
+    state = await FocusModeStorage.getState();
+    queueApply();
   }
 
   function bindNavigation() {
-    const events = ["yt-navigate-finish", "yt-page-data-updated", "spfdone", "popstate"];
+    const schedule = () => {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+      }
+
+      queueApply();
+    };
+
+    const events = [
+      "yt-navigate-start",
+      "yt-navigate-finish",
+      "yt-page-data-updated",
+      "spfdone",
+      "popstate"
+    ];
 
     for (const eventName of events) {
-      window.addEventListener(eventName, queueApply, true);
+      window.addEventListener(eventName, schedule, true);
     }
+
+    wrapHistoryMethod("pushState");
+    wrapHistoryMethod("replaceState");
+    window.addEventListener("yt-focus-history", schedule, true);
+  }
+
+  function wrapHistoryMethod(methodName) {
+    const original = history[methodName];
+    if (typeof original !== "function" || original.__ytFocusWrapped) {
+      return;
+    }
+
+    const wrapped = function (...args) {
+      const result = original.apply(this, args);
+      window.dispatchEvent(new Event("yt-focus-history"));
+      return result;
+    };
+
+    wrapped.__ytFocusWrapped = true;
+    history[methodName] = wrapped;
+  }
+
+  function bindMessages() {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (!message || message.type !== "focus-state-updated") {
+        return;
+      }
+
+      state = FocusModeStorage.normalizeState(message.state);
+      queueApply();
+      sendResponse({ ok: true });
+    });
+  }
+
+  function bindStorage() {
+    FocusModeStorage.observe((nextState) => {
+      state = nextState;
+      queueApply();
+    });
   }
 
   function observeDom() {
-    const observer = new MutationObserver(() => {
-      queueApply();
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "childList" && (mutation.addedNodes.length || mutation.removedNodes.length)) {
+          queueApply();
+          return;
+        }
+      }
     });
 
     observer.observe(document.documentElement, {
@@ -55,57 +98,41 @@
   }
 
   function queueApply() {
-    if (applyQueued) {
+    if (applyTimer !== null) {
       return;
     }
 
-    applyQueued = true;
-    requestAnimationFrame(() => {
-      applyQueued = false;
-      applyFocusMode();
-    });
+    applyTimer = window.setTimeout(() => {
+      applyTimer = null;
+      applyState();
+    }, 50);
   }
 
-  function applyFocusMode() {
+  function applyState() {
+    state = FocusModeStorage.normalizeState(state);
+
     const route = getRouteState();
+    const focusOn = state.focusEnabled;
     const root = document.documentElement;
 
-    root.classList.toggle("yt-focus-mode-on", isEnabled);
-
-    for (const className of ROUTE_CLASSES) {
-      root.classList.remove(className);
-    }
-
-    if (isEnabled && route.blocked) {
-      root.classList.add("yt-focus-mode-blocked", `yt-focus-route-${route.name}`);
-    }
+    root.classList.toggle("yt-focus-on", focusOn);
+    root.classList.toggle("yt-focus-blocked", focusOn && route.blocked);
+    root.classList.toggle("yt-focus-watch", focusOn && route.watchPage);
 
     const placeholder = ensurePlaceholder();
-    placeholder.hidden = !(isEnabled && route.blocked);
+    placeholder.hidden = !(focusOn && route.blocked);
 
-    syncNotificationPanels();
+    syncNotificationPanels(focusOn);
   }
 
   function getRouteState() {
-    const url = new URL(window.location.href);
+    const path = location.pathname;
+    const blocked = BLOCKED_ROUTES.some((route) => path === route || path.startsWith(`${route}/`));
 
-    if (url.pathname === "/") {
-      return { name: "home", blocked: true };
-    }
-
-    if (url.pathname.startsWith("/feed/explore")) {
-      return { name: "explore", blocked: true };
-    }
-
-    if (url.pathname.startsWith("/feed/trending")) {
-      return { name: "trending", blocked: true };
-    }
-
-    if (url.pathname.startsWith("/shorts")) {
-      return { name: "shorts", blocked: true };
-    }
-
-    return { name: "", blocked: false };
+    return {
+      blocked,
+      watchPage: path === "/watch"
+    };
   }
 
   function ensurePlaceholder() {
@@ -115,29 +142,27 @@
       placeholder = document.createElement("div");
       placeholder.id = PLACEHOLDER_ID;
       placeholder.hidden = true;
-      placeholder.innerHTML = '<div class="yt-focus-mode-card">Stay focused.</div>';
+      placeholder.innerHTML = '<div class="yt-focus-card">Stay focused.</div>';
       (document.body || document.documentElement).appendChild(placeholder);
     }
 
     return placeholder;
   }
 
-  function syncNotificationPanels() {
-    const hiddenPanels = document.querySelectorAll("[data-yt-focus-notifications='true']");
-
+  function syncNotificationPanels(focusOn) {
+    const hiddenPanels = document.querySelectorAll("[data-focus-hidden-notifications='true']");
     for (const panel of hiddenPanels) {
-      if (!isEnabled) {
+      if (!focusOn) {
         panel.hidden = false;
-        panel.removeAttribute("data-yt-focus-notifications");
+        panel.removeAttribute("data-focus-hidden-notifications");
       }
     }
 
-    if (!isEnabled) {
+    if (!focusOn) {
       return;
     }
 
     const panels = document.querySelectorAll("tp-yt-iron-dropdown, ytd-multi-page-menu-renderer");
-
     for (const panel of panels) {
       if (!panel.querySelector("ytd-notification-renderer")) {
         continue;
@@ -148,7 +173,7 @@
       }
 
       panel.hidden = true;
-      panel.setAttribute("data-yt-focus-notifications", "true");
+      panel.setAttribute("data-focus-hidden-notifications", "true");
     }
   }
 
@@ -160,60 +185,71 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      html.yt-focus-mode-on ytd-guide-entry-renderer:has(a[href="/feed/explore"]),
-      html.yt-focus-mode-on ytd-guide-entry-renderer:has(a[href="/feed/trending"]),
-      html.yt-focus-mode-on ytd-guide-entry-renderer:has(a[href^="/shorts"]),
-      html.yt-focus-mode-on ytd-mini-guide-entry-renderer:has(a[href="/feed/explore"]),
-      html.yt-focus-mode-on ytd-mini-guide-entry-renderer:has(a[href="/feed/trending"]),
-      html.yt-focus-mode-on ytd-mini-guide-entry-renderer:has(a[href^="/shorts"]),
-      html.yt-focus-mode-on ytd-watch-flexy #secondary,
-      html.yt-focus-mode-on ytd-watch-flexy #comments,
-      html.yt-focus-mode-on ytd-watch-flexy ytd-comments,
-      html.yt-focus-mode-on ytd-watch-flexy ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"],
-      html.yt-focus-mode-on ytd-reel-shelf-renderer,
-      html.yt-focus-mode-on ytd-rich-shelf-renderer[is-shorts],
-      html.yt-focus-mode-on ytd-rich-section-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-mode-on ytd-rich-item-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-mode-on ytd-video-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-mode-on ytd-grid-video-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-mode-on ytd-compact-video-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-mode-on ytd-compact-radio-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-mode-on tp-yt-iron-dropdown:has(ytd-notification-renderer),
-      html.yt-focus-mode-on ytd-multi-page-menu-renderer:has(ytd-notification-renderer) {
+      html.yt-focus-on #guide-button,
+      html.yt-focus-on ytd-mini-guide-renderer,
+      html.yt-focus-on ytd-guide-renderer,
+      html.yt-focus-on tp-yt-app-drawer,
+      html.yt-focus-on #end,
+      html.yt-focus-on #voice-search-button,
+      html.yt-focus-on ytd-notification-topbar-button-renderer,
+      html.yt-focus-on ytd-rich-grid-renderer,
+      html.yt-focus-on ytd-rich-shelf-renderer,
+      html.yt-focus-on ytd-reel-shelf-renderer,
+      html.yt-focus-on ytd-rich-item-renderer:has(a[href*="/shorts/"]),
+      html.yt-focus-on ytd-rich-section-renderer:has(a[href*="/shorts/"]),
+      html.yt-focus-on ytd-video-renderer:has(a[href*="/shorts/"]),
+      html.yt-focus-on ytd-grid-video-renderer:has(a[href*="/shorts/"]),
+      html.yt-focus-on ytd-compact-video-renderer,
+      html.yt-focus-on ytd-compact-radio-renderer,
+      html.yt-focus-on ytd-compact-playlist-renderer,
+      html.yt-focus-on ytd-watch-next-secondary-results-renderer,
+      html.yt-focus-on ytd-comments,
+      html.yt-focus-on #comments,
+      html.yt-focus-on #related,
+      html.yt-focus-on #secondary,
+      html.yt-focus-on ytd-merch-shelf-renderer,
+      html.yt-focus-on ytd-rich-grid-renderer #contents,
+      html.yt-focus-on tp-yt-iron-dropdown:has(ytd-notification-renderer),
+      html.yt-focus-on ytd-multi-page-menu-renderer:has(ytd-notification-renderer),
+      html.yt-focus-on ytd-guide-entry-renderer:has(a[href="/feed/explore"]),
+      html.yt-focus-on ytd-guide-entry-renderer:has(a[href="/feed/trending"]),
+      html.yt-focus-on ytd-guide-entry-renderer:has(a[href^="/shorts"]),
+      html.yt-focus-on ytd-mini-guide-entry-renderer:has(a[href="/feed/explore"]),
+      html.yt-focus-on ytd-mini-guide-entry-renderer:has(a[href="/feed/trending"]),
+      html.yt-focus-on ytd-mini-guide-entry-renderer:has(a[href^="/shorts"]) {
         display: none !important;
       }
 
-      html.yt-focus-mode-on ytd-watch-flexy[is-two-columns_] #columns {
+      html.yt-focus-on ytd-watch-flexy[is-two-columns_] #columns {
         display: block !important;
       }
 
-      html.yt-focus-mode-on ytd-watch-flexy[is-two-columns_] #primary {
-        width: min(1180px, calc(100vw - 48px)) !important;
-        max-width: 1180px !important;
+      html.yt-focus-on ytd-watch-flexy[is-two-columns_] #primary {
+        width: min(1120px, calc(100vw - 48px)) !important;
+        max-width: 1120px !important;
         margin: 0 auto !important;
       }
 
-      html.yt-focus-mode-on.yt-focus-mode-blocked tp-yt-app-drawer,
-      html.yt-focus-mode-on.yt-focus-mode-blocked ytd-mini-guide-renderer,
-      html.yt-focus-mode-on.yt-focus-mode-blocked ytd-guide-renderer,
-      html.yt-focus-mode-on.yt-focus-mode-blocked ytd-page-manager {
+      html.yt-focus-on.yt-focus-blocked ytd-page-manager,
+      html.yt-focus-on.yt-focus-blocked #secondary,
+      html.yt-focus-on.yt-focus-blocked #primary {
         display: none !important;
       }
 
       #${PLACEHOLDER_ID} {
         position: fixed;
-        inset: 88px 24px 24px;
+        inset: 96px 24px 24px;
         z-index: 2147483646;
         display: none;
         place-items: center;
         pointer-events: none;
       }
 
-      html.yt-focus-mode-on.yt-focus-mode-blocked #${PLACEHOLDER_ID} {
+      html.yt-focus-on.yt-focus-blocked #${PLACEHOLDER_ID} {
         display: grid;
       }
 
-      .yt-focus-mode-card {
+      .yt-focus-card {
         min-width: min(100%, 380px);
         padding: 28px 32px;
         border-radius: 28px;
@@ -225,17 +261,17 @@
         letter-spacing: -0.04em;
         text-align: center;
         backdrop-filter: blur(18px);
-        animation: yt-focus-mode-fade 180ms ease;
+        animation: yt-focus-fade 180ms ease;
       }
 
-      html[dark] .yt-focus-mode-card {
+      html[dark] .yt-focus-card {
         background: rgba(24, 24, 24, 0.92);
         border-color: rgba(255, 255, 255, 0.08);
         box-shadow: 0 24px 60px rgba(0, 0, 0, 0.36);
         color: #f5f5f5;
       }
 
-      @keyframes yt-focus-mode-fade {
+      @keyframes yt-focus-fade {
         from {
           opacity: 0;
           transform: translateY(8px);
