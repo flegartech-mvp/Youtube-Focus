@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Focus Mode</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="popup-shell">
+    <section class="panel" aria-label="Focus Mode">
+      <p class="eyebrow">YouTube</p>
+      <h1 class="title">Focus Mode</h1>
+      <p class="subtitle">Remove distractions from YouTube</p>
+
+      <button
+        id="focus-toggle"
+        class="switch"
+        type="button"
+        role="switch"
+        aria-checked="true"
+        aria-label="Toggle Focus Mode"
+      >
+        <span class="switch-track">
+          <span class="switch-copy switch-copy-off">Off</span>
+          <span class="switch-copy switch-copy-on">On</span>
+          <span class="switch-handle"></span>
+        </span>
+      </button>
+
+      <p class="status" id="status">Distractions hidden</p>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
