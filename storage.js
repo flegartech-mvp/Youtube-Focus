@@ -1,12 +1,12 @@
 (() => {
   const STATE_KEY = "focusModeState";
   const THEME_KEY = "focusModeTheme";
-  const DEFAULT_STATE = {
+  const DEFAULT_THEME = "light";
+  const DEFAULT_STATE = Object.freeze({
     focusEnabled: true,
     lockEnabled: false,
     lockEndTime: null
-  };
-  const DEFAULT_THEME = "light";
+  });
 
   function cloneState(state) {
     return {
@@ -26,7 +26,7 @@
       : DEFAULT_STATE.lockEnabled;
     const lockEndTime = Number.isFinite(source.lockEndTime) ? source.lockEndTime : null;
 
-    if (!lockEnabled || !lockEndTime || lockEndTime <= now) {
+    if (!lockEnabled || lockEndTime === null || lockEndTime <= now) {
       return {
         focusEnabled: Boolean(focusEnabled),
         lockEnabled: false,
@@ -41,119 +41,93 @@
     };
   }
 
-  function normalizeTheme(theme) {
-    return theme === "dark" ? "dark" : DEFAULT_THEME;
+  function normalizeTheme(input) {
+    return input === "dark" ? "dark" : DEFAULT_THEME;
   }
 
-  function isLocked(state, now = Date.now()) {
-    const normalized = normalizeState(state, now);
-    return normalized.lockEnabled && normalized.lockEndTime !== null && normalized.lockEndTime > now;
-  }
-
-  function getRemainingMs(state, now = Date.now()) {
-    const normalized = normalizeState(state, now);
-    if (!normalized.lockEnabled || !normalized.lockEndTime) {
-      return 0;
-    }
-
-    return Math.max(0, normalized.lockEndTime - now);
-  }
-
-  function statesEqual(left, right) {
+  function stateEquals(left, right) {
     return left.focusEnabled === right.focusEnabled
       && left.lockEnabled === right.lockEnabled
       && left.lockEndTime === right.lockEndTime;
   }
 
-  function hasCanonicalShape(state) {
-    if (!state || typeof state !== "object") {
+  function isCanonicalState(input) {
+    if (!input || typeof input !== "object") {
       return false;
     }
 
-    const keys = Object.keys(state).sort();
+    const keys = Object.keys(input).sort();
     return keys.length === 3
       && keys[0] === "focusEnabled"
       && keys[1] === "lockEnabled"
       && keys[2] === "lockEndTime";
   }
 
-  function readRawState() {
+  function storageGet(defaults) {
     return new Promise((resolve) => {
-      chrome.storage.local.get({ [STATE_KEY]: DEFAULT_STATE }, (result) => {
-        resolve(result[STATE_KEY]);
+      chrome.storage.local.get(defaults, (result) => {
+        resolve(result || defaults);
       });
     });
   }
 
-  function writeRawState(state) {
-    const normalized = normalizeState(state);
+  function storageSet(payload) {
     return new Promise((resolve) => {
-      chrome.storage.local.set({ [STATE_KEY]: normalized }, () => {
-        resolve(cloneState(normalized));
-      });
-    });
-  }
-
-  function readRawTheme() {
-    return new Promise((resolve) => {
-      chrome.storage.local.get({ [THEME_KEY]: DEFAULT_THEME }, (result) => {
-        resolve(result[THEME_KEY]);
-      });
-    });
-  }
-
-  function writeRawTheme(theme) {
-    const normalized = normalizeTheme(theme);
-    return new Promise((resolve) => {
-      chrome.storage.local.set({ [THEME_KEY]: normalized }, () => {
-        resolve(normalized);
-      });
+      chrome.storage.local.set(payload, resolve);
     });
   }
 
   async function getState() {
-    const rawState = await readRawState();
-    const normalized = normalizeState(rawState);
+    const result = await storageGet({ [STATE_KEY]: DEFAULT_STATE });
+    const rawState = result[STATE_KEY];
+    const normalizedState = normalizeState(rawState);
 
-    if (!hasCanonicalShape(rawState) || !statesEqual(normalized, rawState)) {
-      return writeRawState(normalized);
+    if (!isCanonicalState(rawState) || !stateEquals(normalizedState, rawState)) {
+      await storageSet({ [STATE_KEY]: normalizedState });
     }
 
-    return cloneState(normalized);
+    return cloneState(normalizedState);
   }
 
   async function setState(nextState) {
-    return writeRawState(nextState);
+    const normalizedState = normalizeState(nextState);
+    await storageSet({ [STATE_KEY]: normalizedState });
+    return cloneState(normalizedState);
   }
 
   async function updateState(patch) {
     const currentState = await getState();
-    const partial = typeof patch === "function" ? patch(cloneState(currentState)) : patch;
+    const partial = typeof patch === "function"
+      ? patch(cloneState(currentState))
+      : patch;
     const nextState = normalizeState({ ...currentState, ...(partial || {}) });
 
-    if (statesEqual(currentState, nextState)) {
+    if (stateEquals(currentState, nextState)) {
       return cloneState(currentState);
     }
 
-    return writeRawState(nextState);
+    await storageSet({ [STATE_KEY]: nextState });
+    return cloneState(nextState);
   }
 
   async function getTheme() {
-    const rawTheme = await readRawTheme();
-    const normalized = normalizeTheme(rawTheme);
+    const result = await storageGet({ [THEME_KEY]: DEFAULT_THEME });
+    const theme = normalizeTheme(result[THEME_KEY]);
 
-    if (normalized !== rawTheme) {
-      return writeRawTheme(normalized);
+    if (theme !== result[THEME_KEY]) {
+      await storageSet({ [THEME_KEY]: theme });
     }
 
-    return normalized;
+    return theme;
   }
 
-  async function setTheme(theme) {
-    return writeRawTheme(theme);
+  async function setTheme(nextTheme) {
+    const theme = normalizeTheme(nextTheme);
+    await storageSet({ [THEME_KEY]: theme });
+    return theme;
   }
 
-  function observe(listener) {
+  function observeState(listener) {
     const wrapped = (changes, areaName) => {
       if (areaName !== "local" || !changes[STATE_KEY]) {
         return;
@@ -179,6 +153,20 @@
     return () => chrome.storage.onChanged.removeListener(wrapped);
   }
 
+  function isLocked(state, now = Date.now()) {
+    const normalizedState = normalizeState(state, now);
+    return normalizedState.lockEnabled && normalizedState.lockEndTime !== null;
+  }
+
+  function getRemainingMs(state, now = Date.now()) {
+    const normalizedState = normalizeState(state, now);
+    if (!normalizedState.lockEnabled || normalizedState.lockEndTime === null) {
+      return 0;
+    }
+
+    return Math.max(0, normalizedState.lockEndTime - now);
+  }
+
   self.FocusModeStorage = {
     STATE_KEY,
     THEME_KEY,
@@ -193,7 +181,7 @@
     updateState,
     getTheme,
     setTheme,
-    observe,
+    observeState,
     observeTheme
   };
 })();

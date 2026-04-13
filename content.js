@@ -1,19 +1,52 @@
 (() => {
   const STYLE_ID = "yt-focus-mode-style";
   const PLACEHOLDER_ID = "yt-focus-mode-placeholder";
-  const BLOCKED_ROUTES = ["/", "/feed/explore", "/feed/trending", "/shorts"];
+  const MANAGED_ATTR = "data-yt-focus-managed";
+  const MANAGED_PREV_HIDDEN_ATTR = "data-yt-focus-prev-hidden";
+  const DEBOUNCE_MS = 60;
+  const ROUTE_EVENTS = [
+    "yt-navigate-start",
+    "yt-navigate-finish",
+    "yt-page-data-updated",
+    "spfdone",
+    "popstate"
+  ];
+  const BLOCKED_ROUTES = new Set([
+    "/",
+    "/feed/explore",
+    "/feed/trending"
+  ]);
+  const BLOCKED_PREFIXES = ["/shorts"];
+  const SHORTS_LINK_SELECTOR = 'a[href^="/shorts"], a[href*="/shorts/"]';
+  const GUIDE_LINK_SELECTOR = 'a[href="/feed/explore"], a[href="/feed/trending"], a[href^="/shorts"]';
+  const NOTIFICATION_PANEL_SELECTOR = "tp-yt-iron-dropdown, ytd-multi-page-menu-renderer";
+  const SHORTS_CONTAINER_SELECTOR = [
+    "ytd-rich-item-renderer",
+    "ytd-video-renderer",
+    "ytd-grid-video-renderer",
+    "ytd-compact-video-renderer",
+    "ytd-compact-radio-renderer",
+    "ytd-compact-playlist-renderer",
+    "ytd-rich-section-renderer",
+    "ytd-reel-shelf-renderer",
+    "ytd-rich-shelf-renderer",
+    "ytd-grid-video-renderer"
+  ].join(", ");
+  const GUIDE_CONTAINER_SELECTOR = [
+    "ytd-guide-entry-renderer",
+    "ytd-mini-guide-entry-renderer"
+  ].join(", ");
 
   let state = FocusModeStorage.DEFAULT_STATE;
   let theme = FocusModeStorage.DEFAULT_THEME;
-  let lastUrl = location.href;
-  let applyTimer = null;
+  let lastPath = location.pathname;
+  let applyTimer = 0;
 
   initialize();
 
   async function initialize() {
     injectStyles();
     bindNavigation();
-    bindMessages();
     bindStorage();
     observeDom();
 
@@ -29,22 +62,14 @@
 
   function bindNavigation() {
     const schedule = () => {
-      if (location.href !== lastUrl) {
-        lastUrl = location.href;
+      if (location.pathname !== lastPath) {
+        lastPath = location.pathname;
       }
 
       queueApply();
     };
 
-    const events = [
-      "yt-navigate-start",
-      "yt-navigate-finish",
-      "yt-page-data-updated",
-      "spfdone",
-      "popstate"
-    ];
-
-    for (const eventName of events) {
+    for (const eventName of ROUTE_EVENTS) {
       window.addEventListener(eventName, schedule, true);
     }
 
@@ -69,20 +94,8 @@
     history[methodName] = wrapped;
   }
 
-  function bindMessages() {
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (!message || message.type !== "focus-state-updated") {
-        return;
-      }
-
-      state = FocusModeStorage.normalizeState(message.state);
-      queueApply();
-      sendResponse({ ok: true });
-    });
-  }
-
   function bindStorage() {
-    FocusModeStorage.observe((nextState) => {
+    FocusModeStorage.observeState((nextState) => {
       state = nextState;
       queueApply();
     });
@@ -110,14 +123,14 @@
   }
 
   function queueApply() {
-    if (applyTimer !== null) {
+    if (applyTimer) {
       return;
     }
 
     applyTimer = window.setTimeout(() => {
-      applyTimer = null;
+      applyTimer = 0;
       applyState();
-    }, 50);
+    }, DEBOUNCE_MS);
   }
 
   function applyState() {
@@ -128,7 +141,7 @@
     const focusOn = state.focusEnabled;
     const root = document.documentElement;
 
-    root.classList.toggle("yt-focus-on", focusOn);
+    root.classList.toggle("yt-focus-enabled", focusOn);
     root.classList.toggle("yt-focus-blocked", focusOn && route.blocked);
     root.classList.toggle("yt-focus-watch", focusOn && route.watchPage);
     root.dataset.ytFocusTheme = theme;
@@ -136,12 +149,18 @@
     const placeholder = ensurePlaceholder();
     placeholder.hidden = !(focusOn && route.blocked);
 
-    syncNotificationPanels(focusOn);
+    if (!focusOn) {
+      restoreManagedElements();
+      return;
+    }
+
+    hideDynamicElements();
   }
 
   function getRouteState() {
     const path = location.pathname;
-    const blocked = BLOCKED_ROUTES.some((route) => path === route || path.startsWith(`${route}/`));
+    const blocked = BLOCKED_ROUTES.has(path)
+      || BLOCKED_PREFIXES.some((prefix) => path.startsWith(prefix));
 
     return {
       blocked,
@@ -160,13 +179,12 @@
         <div class="yt-focus-shell">
           <header class="yt-focus-header">
             <a class="yt-focus-home" href="/" aria-label="Go to YouTube home">
-              <span class="yt-focus-home-mark">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M21.58 7.19a2.76 2.76 0 0 0-1.94-1.95C17.92 4.75 12 4.75 12 4.75s-5.92 0-7.64.49A2.76 2.76 0 0 0 2.42 7.2 28.4 28.4 0 0 0 1.93 12a28.4 28.4 0 0 0 .49 4.81 2.76 2.76 0 0 0 1.94 1.95c1.72.49 7.64.49 7.64.49s5.92 0 7.64-.49a2.76 2.76 0 0 0 1.94-1.95 28.4 28.4 0 0 0 .49-4.81 28.4 28.4 0 0 0-.49-4.81Z"></path>
-                  <path d="m10 15.5 5.2-3.5L10 8.5Z" fill="currentColor"></path>
+              <span class="yt-focus-home-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M9 7.5 16 12 9 16.5Z" fill="currentColor"></path>
                 </svg>
               </span>
-              <span class="yt-focus-home-copy">YouTube</span>
+              <span>YouTube</span>
             </a>
 
             <form class="yt-focus-search" action="/results" method="get" role="search">
@@ -179,9 +197,7 @@
                 spellcheck="false"
                 aria-label="Search YouTube"
               >
-              <button class="yt-focus-search-button" type="submit" aria-label="Search">
-                Search
-              </button>
+              <button class="yt-focus-search-button" type="submit" aria-label="Search">Search</button>
             </form>
           </header>
 
@@ -202,31 +218,40 @@
     return placeholder;
   }
 
-  function syncNotificationPanels(focusOn) {
-    const hiddenPanels = document.querySelectorAll("[data-focus-hidden-notifications='true']");
-    for (const panel of hiddenPanels) {
-      if (!focusOn) {
-        panel.hidden = false;
-        panel.removeAttribute("data-focus-hidden-notifications");
-      }
+  function hideDynamicElements() {
+    for (const link of document.querySelectorAll(SHORTS_LINK_SELECTOR)) {
+      hideElement(link.closest(SHORTS_CONTAINER_SELECTOR));
     }
 
-    if (!focusOn) {
+    for (const link of document.querySelectorAll(GUIDE_LINK_SELECTOR)) {
+      hideElement(link.closest(GUIDE_CONTAINER_SELECTOR));
+    }
+
+    for (const panel of document.querySelectorAll(NOTIFICATION_PANEL_SELECTOR)) {
+      if (panel.querySelector("ytd-notification-renderer")) {
+        hideElement(panel);
+      }
+    }
+  }
+
+  function hideElement(element) {
+    if (!element || element.id === PLACEHOLDER_ID) {
       return;
     }
 
-    const panels = document.querySelectorAll("tp-yt-iron-dropdown, ytd-multi-page-menu-renderer");
-    for (const panel of panels) {
-      if (!panel.querySelector("ytd-notification-renderer")) {
-        continue;
-      }
+    if (!element.hasAttribute(MANAGED_ATTR)) {
+      element.setAttribute(MANAGED_ATTR, "1");
+      element.setAttribute(MANAGED_PREV_HIDDEN_ATTR, element.hidden ? "1" : "0");
+    }
 
-      if (panel.hidden) {
-        continue;
-      }
+    element.hidden = true;
+  }
 
-      panel.hidden = true;
-      panel.setAttribute("data-focus-hidden-notifications", "true");
+  function restoreManagedElements() {
+    for (const element of document.querySelectorAll(`[${MANAGED_ATTR}="1"]`)) {
+      element.hidden = element.getAttribute(MANAGED_PREV_HIDDEN_ATTR) === "1";
+      element.removeAttribute(MANAGED_ATTR);
+      element.removeAttribute(MANAGED_PREV_HIDDEN_ATTR);
     }
   }
 
@@ -238,42 +263,26 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      html.yt-focus-on #guide-button,
-      html.yt-focus-on ytd-mini-guide-renderer,
-      html.yt-focus-on ytd-guide-renderer,
-      html.yt-focus-on tp-yt-app-drawer,
-      html.yt-focus-on #voice-search-button,
-      html.yt-focus-on ytd-notification-topbar-button-renderer,
-      html.yt-focus-on ytd-rich-grid-renderer,
-      html.yt-focus-on ytd-rich-shelf-renderer,
-      html.yt-focus-on ytd-reel-shelf-renderer,
-      html.yt-focus-on ytd-rich-item-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-on ytd-rich-section-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-on ytd-video-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-on ytd-grid-video-renderer:has(a[href*="/shorts/"]),
-      html.yt-focus-on ytd-compact-video-renderer,
-      html.yt-focus-on ytd-compact-radio-renderer,
-      html.yt-focus-on ytd-compact-playlist-renderer,
-      html.yt-focus-on ytd-watch-next-secondary-results-renderer,
-      html.yt-focus-on ytd-comments,
-      html.yt-focus-on #comments,
-      html.yt-focus-on #related,
-      html.yt-focus-on #secondary,
-      html.yt-focus-on ytd-merch-shelf-renderer,
-      html.yt-focus-on ytd-rich-grid-renderer #contents,
-      html.yt-focus-on tp-yt-iron-dropdown:has(ytd-notification-renderer),
-      html.yt-focus-on ytd-multi-page-menu-renderer:has(ytd-notification-renderer),
-      html.yt-focus-on ytd-guide-entry-renderer:has(a[href="/feed/explore"]),
-      html.yt-focus-on ytd-guide-entry-renderer:has(a[href="/feed/trending"]),
-      html.yt-focus-on ytd-guide-entry-renderer:has(a[href^="/shorts"]),
-      html.yt-focus-on ytd-mini-guide-entry-renderer:has(a[href="/feed/explore"]),
-      html.yt-focus-on ytd-mini-guide-entry-renderer:has(a[href="/feed/trending"]),
-      html.yt-focus-on ytd-mini-guide-entry-renderer:has(a[href^="/shorts"]) {
+      html.yt-focus-enabled #guide-button,
+      html.yt-focus-enabled ytd-mini-guide-renderer,
+      html.yt-focus-enabled ytd-guide-renderer,
+      html.yt-focus-enabled tp-yt-app-drawer,
+      html.yt-focus-enabled #voice-search-button,
+      html.yt-focus-enabled ytd-notification-topbar-button-renderer,
+      html.yt-focus-enabled ytd-rich-grid-renderer,
+      html.yt-focus-enabled ytd-comments,
+      html.yt-focus-enabled #comments,
+      html.yt-focus-enabled #related,
+      html.yt-focus-enabled #secondary,
+      html.yt-focus-enabled ytd-watch-next-secondary-results-renderer,
+      html.yt-focus-enabled ytd-merch-shelf-renderer,
+      html.yt-focus-enabled ytd-reel-shelf-renderer,
+      html.yt-focus-enabled ytd-rich-shelf-renderer[is-shorts] {
         display: none !important;
       }
 
-      html.yt-focus-on #masthead #start,
-      html.yt-focus-on #masthead #end {
+      html.yt-focus-enabled #masthead #start,
+      html.yt-focus-enabled #masthead #end {
         visibility: hidden !important;
         pointer-events: none !important;
         display: flex !important;
@@ -281,25 +290,23 @@
         min-width: 140px !important;
       }
 
-      html.yt-focus-on #masthead #center {
+      html.yt-focus-enabled #masthead #center {
         margin: 0 auto !important;
       }
 
-      html.yt-focus-on ytd-watch-flexy[is-two-columns_] #columns {
+      html.yt-focus-watch ytd-watch-flexy[is-two-columns_] #columns {
         display: block !important;
       }
 
-      html.yt-focus-on ytd-watch-flexy[is-two-columns_] #primary {
+      html.yt-focus-watch ytd-watch-flexy[is-two-columns_] #primary {
         width: min(1120px, calc(100vw - 48px)) !important;
         max-width: 1120px !important;
         margin: 0 auto !important;
       }
 
-      html.yt-focus-on.yt-focus-blocked ytd-page-manager,
-      html.yt-focus-on.yt-focus-blocked ytd-masthead,
-      html.yt-focus-on.yt-focus-blocked #masthead-container,
-      html.yt-focus-on.yt-focus-blocked #secondary,
-      html.yt-focus-on.yt-focus-blocked #primary {
+      html.yt-focus-blocked ytd-page-manager,
+      html.yt-focus-blocked ytd-masthead,
+      html.yt-focus-blocked #masthead-container {
         display: none !important;
       }
 
@@ -312,7 +319,7 @@
         overflow: hidden;
       }
 
-      html.yt-focus-on.yt-focus-blocked #${PLACEHOLDER_ID} {
+      html.yt-focus-blocked #${PLACEHOLDER_ID} {
         display: grid;
       }
 
@@ -373,7 +380,7 @@
       .yt-focus-home-mark svg {
         width: 18px;
         height: 18px;
-        fill: currentColor;
+        display: block;
       }
 
       .yt-focus-search {

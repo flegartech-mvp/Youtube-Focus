@@ -14,8 +14,8 @@ const donateButton = document.getElementById("donate-button");
 
 let state = FocusModeStorage.DEFAULT_STATE;
 let theme = FocusModeStorage.DEFAULT_THEME;
-let selectedDuration = 25;
-let countdownTimer = null;
+let selectedDuration = String(LOCK_PRESETS[0]);
+let countdownTimer = 0;
 
 initialize();
 
@@ -27,7 +27,6 @@ async function initialize() {
 
   state = nextState;
   theme = nextTheme;
-
   render();
   startCountdown();
 
@@ -36,8 +35,11 @@ async function initialize() {
   lockButton.addEventListener("click", handleLockStart);
   themeToggle.addEventListener("click", handleThemeToggle);
   donateButton.addEventListener("click", handleDonate);
+  window.addEventListener("unload", () => {
+    window.clearInterval(countdownTimer);
+  });
 
-  FocusModeStorage.observe((nextStateUpdate) => {
+  FocusModeStorage.observeState((nextStateUpdate) => {
     state = nextStateUpdate;
     render();
   });
@@ -61,7 +63,6 @@ async function handleFocusToggle() {
   });
 
   render();
-  syncTabs(state);
 }
 
 function handleTimerSelect(event) {
@@ -70,10 +71,10 @@ function handleTimerSelect(event) {
     return;
   }
 
-  const duration = chip.dataset.duration;
-  selectedDuration = duration === "custom"
-    ? "custom"
-    : Number.parseInt(duration, 10);
+  selectedDuration = chip.dataset.duration;
+  if (selectedDuration !== "custom") {
+    customDuration.value = selectedDuration;
+  }
 
   renderTimerSelection();
 }
@@ -89,7 +90,6 @@ async function handleLockStart() {
   });
 
   render();
-  syncTabs(state);
 }
 
 async function handleThemeToggle() {
@@ -106,15 +106,15 @@ function render() {
   const enabled = state.focusEnabled;
   const remainingMs = FocusModeStorage.getRemainingMs(state);
 
+  document.body.dataset.theme = theme;
   document.body.dataset.enabled = String(enabled);
   document.body.dataset.locked = String(locked);
-  document.body.dataset.theme = theme;
 
   focusToggle.setAttribute("aria-checked", String(enabled));
   focusToggle.disabled = locked && enabled;
 
-  themeToggleLabel.textContent = theme === "light" ? "Dark" : "Light";
   themeToggle.setAttribute("aria-pressed", String(theme === "dark"));
+  themeToggleLabel.textContent = theme === "light" ? "Dark" : "Light";
 
   if (locked && enabled) {
     focusStatus.textContent = "Focus locked";
@@ -133,10 +133,8 @@ function render() {
 }
 
 function renderTimerSelection() {
-  const selected = String(selectedDuration);
-
   for (const chip of timerGrid.querySelectorAll(".timer-chip")) {
-    const active = chip.dataset.duration === selected;
+    const active = chip.dataset.duration === selectedDuration;
     chip.classList.toggle("is-selected", active);
     chip.setAttribute("aria-checked", String(active));
   }
@@ -147,10 +145,12 @@ function renderTimerSelection() {
 function getSelectedDuration() {
   if (selectedDuration === "custom") {
     const value = Number.parseInt(customDuration.value, 10);
-    return Number.isFinite(value) ? Math.min(Math.max(value, 1), 480) : LOCK_PRESETS[0];
+    return Number.isFinite(value)
+      ? Math.min(Math.max(value, 1), 480)
+      : LOCK_PRESETS[0];
   }
 
-  return selectedDuration;
+  return Number.parseInt(selectedDuration, 10) || LOCK_PRESETS[0];
 }
 
 function formatRemaining(remainingMs) {
@@ -171,10 +171,9 @@ function formatRemaining(remainingMs) {
 }
 
 function startCountdown() {
-  clearInterval(countdownTimer);
-  countdownTimer = setInterval(async () => {
+  window.clearInterval(countdownTimer);
+  countdownTimer = window.setInterval(async () => {
     if (!state.lockEnabled) {
-      render();
       return;
     }
 
@@ -190,23 +189,5 @@ function startCountdown() {
     });
 
     render();
-    syncTabs(state);
   }, 1000);
-}
-
-function syncTabs(nextState) {
-  chrome.tabs.query({ url: ["https://www.youtube.com/*"] }, (tabs) => {
-    if (!Array.isArray(tabs)) {
-      return;
-    }
-
-    for (const tab of tabs) {
-      chrome.tabs.sendMessage(tab.id, {
-        type: "focus-state-updated",
-        state: nextState
-      }, () => {
-        void chrome.runtime.lastError;
-      });
-    }
-  });
 }
