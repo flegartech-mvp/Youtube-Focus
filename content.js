@@ -142,7 +142,17 @@
       placeholder = document.createElement("div");
       placeholder.id = PLACEHOLDER_ID;
       placeholder.hidden = true;
-      placeholder.innerHTML = '<div class="yt-focus-card">Stay focused.</div>';
+      placeholder.innerHTML = `
+        <div class="yt-focus-screen">
+          <div class="yt-focus-aura"></div>
+          <div class="yt-focus-pulse"></div>
+          <div class="yt-focus-card">
+            <span class="yt-focus-badge">Focus Mode</span>
+            <strong class="yt-focus-title">Stay focused.</strong>
+            <span class="yt-focus-copy">Distractions are hidden.</span>
+          </div>
+        </div>
+      `;
       (document.body || document.documentElement).appendChild(placeholder);
     }
 
@@ -189,7 +199,6 @@
       html.yt-focus-on ytd-mini-guide-renderer,
       html.yt-focus-on ytd-guide-renderer,
       html.yt-focus-on tp-yt-app-drawer,
-      html.yt-focus-on #end,
       html.yt-focus-on #voice-search-button,
       html.yt-focus-on ytd-notification-topbar-button-renderer,
       html.yt-focus-on ytd-rich-grid-renderer,
@@ -220,6 +229,19 @@
         display: none !important;
       }
 
+      html.yt-focus-on #masthead #start,
+      html.yt-focus-on #masthead #end {
+        visibility: hidden !important;
+        pointer-events: none !important;
+        display: flex !important;
+        flex: 0 0 140px !important;
+        min-width: 140px !important;
+      }
+
+      html.yt-focus-on #masthead #center {
+        margin: 0 auto !important;
+      }
+
       html.yt-focus-on ytd-watch-flexy[is-two-columns_] #columns {
         display: block !important;
       }
@@ -231,6 +253,8 @@
       }
 
       html.yt-focus-on.yt-focus-blocked ytd-page-manager,
+      html.yt-focus-on.yt-focus-blocked ytd-masthead,
+      html.yt-focus-on.yt-focus-blocked #masthead-container,
       html.yt-focus-on.yt-focus-blocked #secondary,
       html.yt-focus-on.yt-focus-blocked #primary {
         display: none !important;
@@ -238,30 +262,78 @@
 
       #${PLACEHOLDER_ID} {
         position: fixed;
-        inset: 96px 24px 24px;
-        z-index: 2147483646;
+        inset: 0;
+        z-index: 2147483647;
         display: none;
-        place-items: center;
         pointer-events: none;
+        overflow: hidden;
       }
 
       html.yt-focus-on.yt-focus-blocked #${PLACEHOLDER_ID} {
         display: grid;
       }
 
+      .yt-focus-screen {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 100vw;
+        height: 100vh;
+        padding: 32px;
+        background:
+          radial-gradient(circle at top, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78) 38%, rgba(242, 242, 239, 0.96) 100%);
+      }
+
+      html[dark] .yt-focus-screen {
+        background:
+          radial-gradient(circle at top, rgba(42, 42, 42, 0.94), rgba(18, 18, 18, 0.92) 44%, rgba(10, 10, 10, 0.98) 100%);
+      }
+
+      .yt-focus-aura,
+      .yt-focus-pulse {
+        position: absolute;
+        border-radius: 999px;
+        filter: blur(1px);
+      }
+
+      .yt-focus-aura {
+        width: min(72vw, 780px);
+        height: min(72vw, 780px);
+        background: radial-gradient(circle, rgba(17, 17, 17, 0.12), rgba(17, 17, 17, 0) 68%);
+        animation: yt-focus-breathe 5.4s ease-in-out infinite;
+      }
+
+      html[dark] .yt-focus-aura {
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 68%);
+      }
+
+      .yt-focus-pulse {
+        width: min(42vw, 420px);
+        height: min(42vw, 420px);
+        border: 1px solid rgba(17, 17, 17, 0.12);
+        animation: yt-focus-ring 3.2s ease-out infinite;
+      }
+
+      html[dark] .yt-focus-pulse {
+        border-color: rgba(255, 255, 255, 0.14);
+      }
+
       .yt-focus-card {
-        min-width: min(100%, 380px);
-        padding: 28px 32px;
-        border-radius: 28px;
+        position: relative;
+        z-index: 1;
+        display: grid;
+        justify-items: center;
+        gap: 12px;
+        min-width: min(100%, 400px);
+        padding: 32px 36px;
+        border-radius: 32px;
         background: rgba(255, 255, 255, 0.92);
         border: 1px solid rgba(17, 17, 17, 0.08);
         box-shadow: 0 24px 60px rgba(17, 17, 17, 0.14);
         color: #111111;
-        font: 600 28px/1.1 "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
-        letter-spacing: -0.04em;
         text-align: center;
         backdrop-filter: blur(18px);
-        animation: yt-focus-fade 180ms ease;
+        animation: yt-focus-fade 240ms ease;
       }
 
       html[dark] .yt-focus-card {
@@ -271,15 +343,75 @@
         color: #f5f5f5;
       }
 
+      .yt-focus-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 0 14px;
+        border-radius: 999px;
+        background: rgba(17, 17, 17, 0.06);
+        color: inherit;
+        font: 600 12px/1 "SF Pro Text", "Helvetica Neue", sans-serif;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      html[dark] .yt-focus-badge {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .yt-focus-title {
+        font: 600 34px/1 "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+        letter-spacing: -0.06em;
+      }
+
+      .yt-focus-copy {
+        color: rgba(17, 17, 17, 0.58);
+        font: 500 15px/1.5 "SF Pro Text", "Helvetica Neue", sans-serif;
+      }
+
+      html[dark] .yt-focus-copy {
+        color: rgba(255, 255, 255, 0.68);
+      }
+
       @keyframes yt-focus-fade {
         from {
           opacity: 0;
-          transform: translateY(8px);
+          transform: translateY(12px) scale(0.98);
         }
 
         to {
           opacity: 1;
-          transform: translateY(0);
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes yt-focus-breathe {
+        0%,
+        100% {
+          transform: scale(0.94);
+          opacity: 0.72;
+        }
+
+        50% {
+          transform: scale(1.04);
+          opacity: 1;
+        }
+      }
+
+      @keyframes yt-focus-ring {
+        0% {
+          transform: scale(0.84);
+          opacity: 0;
+        }
+
+        20% {
+          opacity: 0.72;
+        }
+
+        100% {
+          transform: scale(1.24);
+          opacity: 0;
         }
       }
     `;
