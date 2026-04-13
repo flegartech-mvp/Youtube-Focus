@@ -9,9 +9,18 @@
 <body>
   <main class="popup-shell">
     <section class="panel" aria-label="Focus Mode controls">
-      <p class="eyebrow">YouTube</p>
-      <h1 class="title">Focus Mode</h1>
-      <p class="subtitle">Remove distractions from YouTube</p>
+      <div class="panel-top">
+        <div class="panel-copy">
+          <p class="eyebrow">YouTube</p>
+          <h1 class="title">Focus Mode</h1>
+          <p class="subtitle">Remove distractions from YouTube</p>
+        </div>
+
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme">
+          <span class="theme-toggle-icon" aria-hidden="true"></span>
+          <span class="theme-toggle-label" id="theme-toggle-label">Dark</span>
+        </button>
+      </div>
 
       <button
         id="focus-toggle"
@@ -51,6 +60,8 @@
 
         <button id="lock-button" class="lock-button" type="button">Start lock</button>
       </section>
+
+      <button id="donate-button" class="donate-button" type="button">Donate via PayPal</button>
     </section>
   </main>
 

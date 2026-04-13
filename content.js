@@ -4,6 +4,7 @@
   const BLOCKED_ROUTES = ["/", "/feed/explore", "/feed/trending", "/shorts"];
 
   let state = FocusModeStorage.DEFAULT_STATE;
+  let theme = FocusModeStorage.DEFAULT_THEME;
   let lastUrl = location.href;
   let applyTimer = null;
 
@@ -16,7 +17,13 @@
     bindStorage();
     observeDom();
 
-    state = await FocusModeStorage.getState();
+    const [nextState, nextTheme] = await Promise.all([
+      FocusModeStorage.getState(),
+      FocusModeStorage.getTheme()
+    ]);
+
+    state = nextState;
+    theme = nextTheme;
     queueApply();
   }
 
@@ -79,6 +86,11 @@
       state = nextState;
       queueApply();
     });
+
+    FocusModeStorage.observeTheme((nextTheme) => {
+      theme = nextTheme;
+      queueApply();
+    });
   }
 
   function observeDom() {
@@ -110,6 +122,7 @@
 
   function applyState() {
     state = FocusModeStorage.normalizeState(state);
+    theme = FocusModeStorage.normalizeTheme(theme);
 
     const route = getRouteState();
     const focusOn = state.focusEnabled;
@@ -118,6 +131,7 @@
     root.classList.toggle("yt-focus-on", focusOn);
     root.classList.toggle("yt-focus-blocked", focusOn && route.blocked);
     root.classList.toggle("yt-focus-watch", focusOn && route.watchPage);
+    root.dataset.ytFocusTheme = theme;
 
     const placeholder = ensurePlaceholder();
     placeholder.hidden = !(focusOn && route.blocked);
@@ -339,7 +353,7 @@
         backdrop-filter: blur(18px);
       }
 
-      html[dark] .yt-focus-home {
+      html[data-yt-focus-theme="dark"] .yt-focus-home {
         background: rgba(24, 24, 24, 0.78);
         border-color: rgba(255, 255, 255, 0.1);
         box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
@@ -378,7 +392,7 @@
         backdrop-filter: blur(18px);
       }
 
-      html[dark] .yt-focus-search {
+      html[data-yt-focus-theme="dark"] .yt-focus-search {
         background: rgba(24, 24, 24, 0.78);
         border-color: rgba(255, 255, 255, 0.1);
         box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
@@ -406,11 +420,11 @@
         color: rgba(17, 17, 17, 0.46);
       }
 
-      html[dark] .yt-focus-search-input {
+      html[data-yt-focus-theme="dark"] .yt-focus-search-input {
         color: #f5f5f5;
       }
 
-      html[dark] .yt-focus-search-input::placeholder {
+      html[data-yt-focus-theme="dark"] .yt-focus-search-input::placeholder {
         color: rgba(255, 255, 255, 0.48);
       }
 
@@ -426,7 +440,7 @@
         cursor: pointer;
       }
 
-      html[dark] .yt-focus-search-button {
+      html[data-yt-focus-theme="dark"] .yt-focus-search-button {
         background: #f5f5f5;
         color: #111111;
       }
@@ -442,7 +456,7 @@
           radial-gradient(circle at top, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78) 38%, rgba(242, 242, 239, 0.96) 100%);
       }
 
-      html[dark] .yt-focus-screen {
+      html[data-yt-focus-theme="dark"] .yt-focus-screen {
         background:
           radial-gradient(circle at top, rgba(42, 42, 42, 0.94), rgba(18, 18, 18, 0.92) 44%, rgba(10, 10, 10, 0.98) 100%);
       }
@@ -461,7 +475,7 @@
         animation: yt-focus-breathe 5.4s ease-in-out infinite;
       }
 
-      html[dark] .yt-focus-aura {
+      html[data-yt-focus-theme="dark"] .yt-focus-aura {
         background: radial-gradient(circle, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 68%);
       }
 
@@ -472,7 +486,7 @@
         animation: yt-focus-ring 3.2s ease-out infinite;
       }
 
-      html[dark] .yt-focus-pulse {
+      html[data-yt-focus-theme="dark"] .yt-focus-pulse {
         border-color: rgba(255, 255, 255, 0.14);
       }
 
@@ -494,7 +508,7 @@
         animation: yt-focus-fade 240ms ease;
       }
 
-      html[dark] .yt-focus-card {
+      html[data-yt-focus-theme="dark"] .yt-focus-card {
         background: rgba(24, 24, 24, 0.92);
         border-color: rgba(255, 255, 255, 0.08);
         box-shadow: 0 24px 60px rgba(0, 0, 0, 0.36);
@@ -514,7 +528,7 @@
         text-transform: uppercase;
       }
 
-      html[dark] .yt-focus-badge {
+      html[data-yt-focus-theme="dark"] .yt-focus-badge {
         background: rgba(255, 255, 255, 0.08);
       }
 
@@ -528,7 +542,7 @@
         font: 500 15px/1.5 "SF Pro Text", "Helvetica Neue", sans-serif;
       }
 
-      html[dark] .yt-focus-copy {
+      html[data-yt-focus-theme="dark"] .yt-focus-copy {
         color: rgba(255, 255, 255, 0.68);
       }
 

@@ -1,4 +1,5 @@
 const LOCK_PRESETS = [25, 50, 90];
+const DONATE_URL = "https://paypal.me/TiniFlegar";
 
 const focusToggle = document.getElementById("focus-toggle");
 const focusStatus = document.getElementById("focus-status");
@@ -7,24 +8,42 @@ const timerGrid = document.getElementById("timer-grid");
 const customWrap = document.getElementById("custom-wrap");
 const customDuration = document.getElementById("custom-duration");
 const lockButton = document.getElementById("lock-button");
+const themeToggle = document.getElementById("theme-toggle");
+const themeToggleLabel = document.getElementById("theme-toggle-label");
+const donateButton = document.getElementById("donate-button");
 
 let state = FocusModeStorage.DEFAULT_STATE;
+let theme = FocusModeStorage.DEFAULT_THEME;
 let selectedDuration = 25;
 let countdownTimer = null;
 
 initialize();
 
 async function initialize() {
-  state = await FocusModeStorage.getState();
+  const [nextState, nextTheme] = await Promise.all([
+    FocusModeStorage.getState(),
+    FocusModeStorage.getTheme()
+  ]);
+
+  state = nextState;
+  theme = nextTheme;
+
   render();
   startCountdown();
 
   focusToggle.addEventListener("click", handleFocusToggle);
   timerGrid.addEventListener("click", handleTimerSelect);
   lockButton.addEventListener("click", handleLockStart);
+  themeToggle.addEventListener("click", handleThemeToggle);
+  donateButton.addEventListener("click", handleDonate);
 
-  FocusModeStorage.observe((nextState) => {
-    state = nextState;
+  FocusModeStorage.observe((nextStateUpdate) => {
+    state = nextStateUpdate;
+    render();
+  });
+
+  FocusModeStorage.observeTheme((nextThemeUpdate) => {
+    theme = nextThemeUpdate;
     render();
   });
 }
@@ -73,6 +92,15 @@ async function handleLockStart() {
   syncTabs(state);
 }
 
+async function handleThemeToggle() {
+  theme = await FocusModeStorage.setTheme(theme === "light" ? "dark" : "light");
+  render();
+}
+
+function handleDonate() {
+  chrome.tabs.create({ url: DONATE_URL });
+}
+
 function render() {
   const locked = FocusModeStorage.isLocked(state);
   const enabled = state.focusEnabled;
@@ -80,8 +108,13 @@ function render() {
 
   document.body.dataset.enabled = String(enabled);
   document.body.dataset.locked = String(locked);
+  document.body.dataset.theme = theme;
+
   focusToggle.setAttribute("aria-checked", String(enabled));
   focusToggle.disabled = locked && enabled;
+
+  themeToggleLabel.textContent = theme === "light" ? "Dark" : "Light";
+  themeToggle.setAttribute("aria-pressed", String(theme === "dark"));
 
   if (locked && enabled) {
     focusStatus.textContent = "Focus locked";

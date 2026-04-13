@@ -1,10 +1,12 @@
 (() => {
   const STATE_KEY = "focusModeState";
+  const THEME_KEY = "focusModeTheme";
   const DEFAULT_STATE = {
     focusEnabled: true,
     lockEnabled: false,
     lockEndTime: null
   };
+  const DEFAULT_THEME = "light";
 
   function cloneState(state) {
     return {
@@ -37,6 +39,10 @@
       lockEnabled: true,
       lockEndTime
     };
+  }
+
+  function normalizeTheme(theme) {
+    return theme === "dark" ? "dark" : DEFAULT_THEME;
   }
 
   function isLocked(state, now = Date.now()) {
@@ -88,6 +94,23 @@
     });
   }
 
+  function readRawTheme() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get({ [THEME_KEY]: DEFAULT_THEME }, (result) => {
+        resolve(result[THEME_KEY]);
+      });
+    });
+  }
+
+  function writeRawTheme(theme) {
+    const normalized = normalizeTheme(theme);
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ [THEME_KEY]: normalized }, () => {
+        resolve(normalized);
+      });
+    });
+  }
+
   async function getState() {
     const rawState = await readRawState();
     const normalized = normalizeState(rawState);
@@ -115,6 +138,21 @@
     return writeRawState(nextState);
   }
 
+  async function getTheme() {
+    const rawTheme = await readRawTheme();
+    const normalized = normalizeTheme(rawTheme);
+
+    if (normalized !== rawTheme) {
+      return writeRawTheme(normalized);
+    }
+
+    return normalized;
+  }
+
+  async function setTheme(theme) {
+    return writeRawTheme(theme);
+  }
+
   function observe(listener) {
     const wrapped = (changes, areaName) => {
       if (areaName !== "local" || !changes[STATE_KEY]) {
@@ -128,15 +166,34 @@
     return () => chrome.storage.onChanged.removeListener(wrapped);
   }
 
+  function observeTheme(listener) {
+    const wrapped = (changes, areaName) => {
+      if (areaName !== "local" || !changes[THEME_KEY]) {
+        return;
+      }
+
+      listener(normalizeTheme(changes[THEME_KEY].newValue));
+    };
+
+    chrome.storage.onChanged.addListener(wrapped);
+    return () => chrome.storage.onChanged.removeListener(wrapped);
+  }
+
   self.FocusModeStorage = {
     STATE_KEY,
+    THEME_KEY,
     DEFAULT_STATE: cloneState(DEFAULT_STATE),
+    DEFAULT_THEME,
     normalizeState,
+    normalizeTheme,
     isLocked,
     getRemainingMs,
     getState,
     setState,
     updateState,
-    observe
+    getTheme,
+    setTheme,
+    observe,
+    observeTheme
   };
 })();
