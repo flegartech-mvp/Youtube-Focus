@@ -49,10 +49,13 @@ Required so the content script can run only on YouTube pages and hide distractin
 ## Privacy
 
 Privacy policy URL:
-Use the public GitHub URL for `PRIVACY.md` after pushing the repo.
+Use the public GitHub URL for `PRIVACY.md` or the GitHub Pages URL for `privacy.html`.
 
-Raw GitHub URL format:
-`https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YoutubeFocus/master/PRIVACY.md`
+GitHub file URL:
+`https://github.com/flegartech-mvp/Youtube-Focus/blob/master/PRIVACY.md`
+
+GitHub Pages URL after enabling Pages:
+`https://flegartech-mvp.github.io/Youtube-Focus/privacy.html`
 
 User data collection:
 The extension does not collect, sell, transmit, or share user data. Settings are stored locally with `chrome.storage.local` and are not sent to any server.
