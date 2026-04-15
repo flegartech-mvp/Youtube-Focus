@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "YouTube Focus Mode",
   "version": "3.0.0",
-  "description": "A minimal focus mode that removes distractions from YouTube.",
+  "description": "Strip YouTube down to search and video only, then lock focus sessions when you need them.",
   "permissions": [
     "storage"
   ],
