@@ -3,7 +3,7 @@
   const THEME_KEY = "focusModeTheme";
   const DEFAULT_THEME = "light";
   const DEFAULT_STATE = Object.freeze({
-    focusEnabled: true,
+    focusEnabled: false,
     lockEnabled: false,
     lockEndTime: null
   });

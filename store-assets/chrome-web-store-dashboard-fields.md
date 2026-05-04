@@ -1,6 +1,6 @@
 # Chrome Web Store Dashboard Fields
 
-Use `release/youtube-focus-mode-v3.0.0.zip` for the package upload.
+Use `release/youtube-focus-mode-v3.0.1.zip` for the package upload.
 
 The package is already uploaded in the Chrome Web Store Developer Dashboard for:
 
@@ -29,19 +29,19 @@ Tagline:
 Minimal YouTube focus for deliberate watching.
 
 Short description:
-Strip YouTube down to search and video only, then lock focus sessions when you need them.
+Strip YouTube down to search and video only, with optional timed focus sessions.
 
 Detailed description:
-YouTube Focus Mode turns YouTube into a calmer, more intentional space. When Focus Mode is on, the extension removes the feed, related videos, comments, Shorts, Explore, Trending, and other visual noise so you can use search or watch exactly what you meant to open. Lock Mode keeps Focus Mode enabled for a timed session when you want extra commitment. The experience is fast, minimal, and designed to feel effortless.
+YouTube Focus Mode turns YouTube into a calmer, more intentional space. When Focus Mode is on, the extension removes the feed, related videos, comments, Shorts, Explore, Trending, and other visual noise so you can use search or watch exactly what you meant to open. Timed Lock keeps Focus Mode enabled for a timed session when you want a soft commitment. The experience is fast, minimal, and designed to feel effortless.
 
 ## Single Purpose
 
-Help users watch YouTube intentionally by hiding distracting YouTube interface elements and optionally locking Focus Mode for a timed session.
+Help users watch YouTube intentionally by hiding distracting YouTube interface elements and optionally keeping Focus Mode enabled for a timed session.
 
 ## Permission Justifications
 
 storage:
-Used to save Focus Mode state, Lock Mode end time, and the user's light/dark theme preference locally in Chrome.
+Used to save Focus Mode state, Timed Lock end time, and the user's light/dark theme preference locally in Chrome.
 
 host permission: https://www.youtube.com/*
 Required so the content script can run only on YouTube pages and hide distracting interface elements such as feeds, Shorts, comments, related videos, Explore, Trending, and notification panels.
@@ -74,7 +74,7 @@ The optional support button opens a PayPal page only after the user clicks it. T
 4. Search for a video and open a watch page.
 5. Confirm comments, related videos, Shorts shelves, and notification distractions are hidden.
 6. Open the extension popup, turn Focus Mode off, and confirm YouTube returns to normal.
-7. Start a 25-minute Lock Mode session and confirm Focus Mode stays enabled until the timer expires.
+7. Start a 25-minute Timed Lock session and confirm Focus Mode stays enabled until the timer expires.
 
 ## Listing Images
 

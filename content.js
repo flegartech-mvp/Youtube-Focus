@@ -29,8 +29,7 @@
     "ytd-compact-playlist-renderer",
     "ytd-rich-section-renderer",
     "ytd-reel-shelf-renderer",
-    "ytd-rich-shelf-renderer",
-    "ytd-grid-video-renderer"
+    "ytd-rich-shelf-renderer"
   ].join(", ");
   const GUIDE_CONTAINER_SELECTOR = [
     "ytd-guide-entry-renderer",
@@ -41,6 +40,7 @@
   let theme = FocusModeStorage.DEFAULT_THEME;
   let lastPath = location.pathname;
   let applyTimer = 0;
+  let bodyReadyQueued = false;
 
   initialize();
 
@@ -109,17 +109,49 @@
   function observeDom() {
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
-        if (mutation.type === "childList" && (mutation.addedNodes.length || mutation.removedNodes.length)) {
+        if (mutation.type !== "childList" || (!mutation.addedNodes.length && !mutation.removedNodes.length)) {
+          continue;
+        }
+
+        if (isOwnMutation(mutation)) {
+          continue;
+        }
+
+        if (document.body && mutation.target === document.documentElement) {
+          observer.disconnect();
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true
+          });
+        }
+
+        if (state.focusEnabled) {
           queueApply();
           return;
         }
       }
     });
 
-    observer.observe(document.documentElement, {
+    observer.observe(document.body || document.documentElement, {
       childList: true,
       subtree: true
     });
+  }
+
+  function isOwnMutation(mutation) {
+    return isPlaceholderNode(mutation.target)
+      || nodesAreOnlyPlaceholder(mutation.addedNodes)
+      || nodesAreOnlyPlaceholder(mutation.removedNodes);
+  }
+
+  function nodesAreOnlyPlaceholder(nodes) {
+    return nodes.length > 0 && [...nodes].every(isPlaceholderNode);
+  }
+
+  function isPlaceholderNode(node) {
+    return node
+      && node.nodeType === Node.ELEMENT_NODE
+      && (node.id === PLACEHOLDER_ID || node.closest?.(`#${PLACEHOLDER_ID}`));
   }
 
   function queueApply() {
@@ -147,7 +179,9 @@
     root.dataset.ytFocusTheme = theme;
 
     const placeholder = ensurePlaceholder();
-    placeholder.hidden = !(focusOn && route.blocked);
+    if (placeholder) {
+      placeholder.hidden = !(focusOn && route.blocked);
+    }
 
     if (!focusOn) {
       restoreManagedElements();
@@ -169,6 +203,11 @@
   }
 
   function ensurePlaceholder() {
+    if (!document.body) {
+      queueBodyReadyApply();
+      return null;
+    }
+
     let placeholder = document.getElementById(PLACEHOLDER_ID);
 
     if (!placeholder) {
@@ -178,14 +217,14 @@
       placeholder.innerHTML = `
         <div class="yt-focus-shell">
           <header class="yt-focus-header">
-            <a class="yt-focus-home" href="/" aria-label="Go to YouTube home">
+            <button class="yt-focus-home" type="button" aria-label="Focus search">
               <span class="yt-focus-home-mark" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path d="M9 7.5 16 12 9 16.5Z" fill="currentColor"></path>
                 </svg>
               </span>
               <span>YouTube</span>
-            </a>
+            </button>
 
             <form class="yt-focus-search" action="/results" method="get" role="search">
               <input
@@ -212,10 +251,40 @@
           </div>
         </div>
       `;
-      (document.body || document.documentElement).appendChild(placeholder);
+      bindPlaceholderActions(placeholder);
+      document.body.appendChild(placeholder);
     }
 
     return placeholder;
+  }
+
+  function queueBodyReadyApply() {
+    if (bodyReadyQueued) {
+      return;
+    }
+
+    bodyReadyQueued = true;
+    const schedule = () => {
+      bodyReadyQueued = false;
+      queueApply();
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", schedule, { once: true });
+      return;
+    }
+
+    window.setTimeout(schedule, 0);
+  }
+
+  function bindPlaceholderActions(placeholder) {
+    const homeButton = placeholder.querySelector(".yt-focus-home");
+    const searchInput = placeholder.querySelector(".yt-focus-search-input");
+
+    homeButton?.addEventListener("click", () => {
+      searchInput?.focus();
+      searchInput?.select();
+    });
   }
 
   function hideDynamicElements() {
@@ -235,7 +304,7 @@
   }
 
   function hideElement(element) {
-    if (!element || element.id === PLACEHOLDER_ID) {
+    if (!element || element.id === PLACEHOLDER_ID || element.closest?.(`#${PLACEHOLDER_ID}`)) {
       return;
     }
 
@@ -358,6 +427,7 @@
         letter-spacing: -0.02em;
         text-decoration: none;
         backdrop-filter: blur(18px);
+        cursor: pointer;
       }
 
       html[data-yt-focus-theme="dark"] .yt-focus-home {

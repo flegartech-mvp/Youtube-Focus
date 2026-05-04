@@ -4,7 +4,7 @@ Last updated: April 15, 2026
 
 YouTube Focus Mode does not collect, sell, transmit, or share personal data.
 
-The extension stores only local settings in Chrome, including Focus Mode state, Lock Mode end time, and the user's light/dark theme preference. These settings are stored locally using `chrome.storage.local` and are not sent to any server.
+The extension stores only local settings in Chrome, including Focus Mode state, Timed Lock end time, and the user's light/dark theme preference. These settings are stored locally using `chrome.storage.local` and are not sent to any server.
 
 The extension runs only on YouTube pages to hide distracting interface elements such as feeds, Shorts, comments, related videos, Explore, Trending, and notification panels.
 

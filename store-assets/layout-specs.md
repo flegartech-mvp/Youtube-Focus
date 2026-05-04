@@ -20,7 +20,7 @@ Text direction:
 - Small promotional image: derived from Focus Mode On feature tile.
 - Feature 1: Focus Mode Off / YouTube stays completely normal.
 - Feature 2: Focus Mode On / Search and video stay. Distractions disappear.
-- Feature 3: Lock Mode Active / Keep focus enabled until the session ends.
+- Feature 3: Timed Lock Active / Keep focus enabled until the session ends.
 - Screenshot 1: Normal YouTube when Focus Mode is off
 - Screenshot 2: Minimal YouTube with Focus Mode on
-- Screenshot 3: Lock Mode keeps Focus Mode on
+- Screenshot 3: Timed Lock keeps Focus Mode on

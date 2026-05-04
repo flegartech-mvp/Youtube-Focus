@@ -33,6 +33,7 @@ async function initialize() {
   focusToggle.addEventListener("click", handleFocusToggle);
   timerGrid.addEventListener("click", handleTimerSelect);
   lockButton.addEventListener("click", handleLockStart);
+  customDuration.addEventListener("change", handleCustomDurationCommit);
   themeToggle.addEventListener("click", handleThemeToggle);
   donateButton.addEventListener("click", handleDonate);
   window.addEventListener("unload", () => {
@@ -81,6 +82,10 @@ function handleTimerSelect(event) {
 
 async function handleLockStart() {
   const durationMinutes = getSelectedDuration();
+  if (selectedDuration === "custom") {
+    customDuration.value = String(durationMinutes);
+  }
+
   const lockEndTime = Date.now() + (durationMinutes * 60_000);
 
   state = await FocusModeStorage.setState({
@@ -89,6 +94,11 @@ async function handleLockStart() {
     lockEndTime
   });
 
+  render();
+}
+
+function handleCustomDurationCommit() {
+  customDuration.value = String(getSelectedDuration());
   render();
 }
 
@@ -117,15 +127,15 @@ function render() {
   themeToggleLabel.textContent = theme === "light" ? "Dark" : "Light";
 
   if (locked && enabled) {
-    focusStatus.textContent = "Focus locked";
+    focusStatus.textContent = "Soft lock active";
     lockIndicator.hidden = false;
-    lockIndicator.textContent = `Locked: ${formatRemaining(remainingMs)} remaining`;
-    lockButton.textContent = "Focus locked";
+    lockIndicator.textContent = `Soft lock: ${formatRemaining(remainingMs)} remaining`;
+    lockButton.textContent = "Soft lock active";
     lockButton.disabled = true;
   } else {
     focusStatus.textContent = enabled ? "Distractions hidden" : "YouTube restored";
     lockIndicator.hidden = true;
-    lockButton.textContent = "Start lock";
+    lockButton.textContent = `Start ${formatDuration(getSelectedDuration())} soft lock`;
     lockButton.disabled = false;
   }
 
@@ -151,6 +161,16 @@ function getSelectedDuration() {
   }
 
   return Number.parseInt(selectedDuration, 10) || LOCK_PRESETS[0];
+}
+
+function formatDuration(durationMinutes) {
+  if (durationMinutes < 60) {
+    return `${durationMinutes}m`;
+  }
+
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
 function formatRemaining(remainingMs) {
@@ -179,7 +199,7 @@ function startCountdown() {
 
     const remainingMs = FocusModeStorage.getRemainingMs(state);
     if (remainingMs > 0) {
-      lockIndicator.textContent = `Locked: ${formatRemaining(remainingMs)} remaining`;
+      lockIndicator.textContent = `Soft lock: ${formatRemaining(remainingMs)} remaining`;
       return;
     }
 
